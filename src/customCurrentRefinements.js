@@ -2,11 +2,11 @@ import { connectCurrentRefinements } from 'react-instantsearch-dom';
 import React from 'react';
 
 const CurrentRefinements = ({ items, refine, createURL, inclusive=true }) => {
-  console.log('current refinments', items);
+  // console.log('current refinments', items);
   return (
     <ul>
-      {items.map(item => (
-        <li key={item.label}>
+      {items.map((item, idx) => (
+        <li key={item.label + idx}>
           {item.items ? (
             <React.Fragment>
               {item.label}
@@ -17,8 +17,8 @@ const CurrentRefinements = ({ items, refine, createURL, inclusive=true }) => {
                       ? nested.label[0] !== '-'
                       : nested.label[0] === '-'
                   )
-                  .map(nested => (
-                    <li key={nested.label}>
+                  .map((nested, index) => (
+                    <li key={nested.label + index}>
                       <a
                         href={createURL(nested.value)}
                         onClick={event => {

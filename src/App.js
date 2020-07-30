@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import algoliasearch from 'algoliasearch/lite';
 import {
   InstantSearch,
@@ -9,60 +9,64 @@ import {
   Highlight,
   RefinementList,
   CurrentRefinements,
+  Configure,
 } from 'react-instantsearch-dom';
 import PropTypes from 'prop-types';
 import './App.css';
 import algoliaSearchClient from './searchClient';
 import CustomCurrentRefinements from './customCurrentRefinements';
 import { Stats } from 'react-instantsearch-dom';
+import CustomAutocomplete from './customAutoComplete';
 
-const searchClient = algoliasearch(
-  'latency',
-  '6be0576ff61c053d5f9a3225e2a90f76'
-);
 const indexName = 'instant_search';
 const initialFacets = [];
 
 const CustomRefinementList = connectRefinementList(
-  ({ limit, items, refine }) => {
-    console.log('Length of CustomRefinementList', items);
+  ({ limit, items, refine, searchForItems }) => {
+    // console.log('Length of CustomRefinementList', items);
     return (
-      <ul className="custom-RefinementList">
-        {items
-          .filter(item => item.label[0] !== '-')
-          .slice(0, limit / 2 + 1)
-          .map(item => {
-            const isNegativeRefined = item.value.indexOf('-' + item.label) > -1;
-            const valueWithoutItself = item.value.filter(
-              value => value !== item.label && value !== '-' + item.label
-            );
-            // console.log(isNegativeRefined, item.value);
-            return (
-              <li key={item.label}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={isNegativeRefined}
-                    onChange={() => {
-                      console.log(
-                        'refine param',
-                        isNegativeRefined
-                          ? valueWithoutItself
-                          : [...valueWithoutItself, '-' + item.label]
-                      );
-                      refine(
-                        isNegativeRefined
-                          ? valueWithoutItself
-                          : [...valueWithoutItself, '-' + item.label]
-                      );
-                    }}
-                  />{' '}
-                  - {item.label}
-                </label>
-              </li>
-            );
-          })}
-      </ul>
+      <>
+        <input
+          type="search"
+          onChange={event => searchForItems(event.currentTarget.value)}
+        />
+        <ul className="custom-RefinementList">
+          {items
+            .filter(item => item.label[0] !== '-')
+            .slice(0, limit / 2 + 1)
+            .map(item => {
+              const isNegativeRefined =
+                item.value.indexOf('-' + item.label) > -1;
+              const valueWithoutItself = item.value.filter(
+                value => value !== item.label && value !== '-' + item.label
+              );
+              return (
+                <li key={item.label}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={isNegativeRefined}
+                      onChange={() => {
+                        console.log(
+                          'refine param',
+                          isNegativeRefined
+                            ? valueWithoutItself
+                            : [...valueWithoutItself, '-' + item.label]
+                        );
+                        refine(
+                          isNegativeRefined
+                            ? valueWithoutItself
+                            : [...valueWithoutItself, '-' + item.label]
+                        );
+                      }}
+                    />{' '}
+                    - {item.label}
+                  </label>
+                </li>
+              );
+            })}
+        </ul>
+      </>
     );
   }
 );
@@ -111,6 +115,46 @@ function App() {
   //       // console.log(Object.keys(results[0].facets['categories']).length);
   //     });
   // }, []);
+  const [filters, setfilters] = useState('');
+  const [excludedItems, setExcludedItems] = useState([]);
+  const [excludeFilterList, setExcludefilterList] = useState({});
+  useEffect(() => {
+    let newFilters = getFilters();
+    setfilters(newFilters);
+    console.log(excludeFilterList, newFilters);
+  }, [excludeFilterList]);
+  function onExclude(key, hit) {
+    // setfilters(filters ? `${filters} AND (NOT ${key}:${hit[key]})` : `(NOT ${key}:${hit[key]})`);
+    const excludeKeys = excludeFilterList[key] || [];
+    excludeKeys.push(hit);
+    let newFilterList = { ...excludeFilterList, [key]: excludeKeys }
+    setExcludefilterList(newFilterList);
+    setExcludedItems(newFilterList[key] ||[]);
+
+  }
+  function addBack(keyToAddBack, hit) {
+    const list = excludeFilterList[keyToAddBack] || [];
+    const newList = list.filter(item => item.objectID !== hit.objectID);
+    let newFilterList = { ...excludeFilterList, [keyToAddBack]: newList };
+    setExcludefilterList(newFilterList);
+    setExcludedItems(newFilterList['objectID'] ||[]);
+
+  }
+
+  function getFilters() {
+    let result = '';
+    Object.keys(excludeFilterList).forEach(key => {
+      if (excludeFilterList[key]) {
+        const excludeStringForKey = excludeFilterList[key]
+          .map(item => `(NOT ${key}:${item[key]})`)
+          .join(' AND ');
+        result = result
+          ? `${result} AND ${excludeStringForKey}`
+          : excludeStringForKey;
+      }
+    });
+    return result;
+  }
   return (
     <div>
       <header className="header">
@@ -132,14 +176,12 @@ function App() {
         >
           <div className="search-panel">
             <div className="search-panel__filters">
-            <p> brands</p>
+              <p> brands</p>
               <CustomCurrentRefinements
                 inclusive={true}
                 includeAttributes={['brand']}
                 transformItems={items => {
-                  console.log('currentRefinementItems', items);
                   return items.filter(item => {
-                    console.log('currentRefinements', item);
                     return item.attribute === 'brand';
                   });
                 }}
@@ -148,10 +190,8 @@ function App() {
                 limit={20}
                 defaultRefinement={['LG']}
                 attribute="brand"
-                transformItems={
-                  items => items.filter(item => item.label[0] !== '-')
-                  //.reverse()
-                  // .slice(0, 20)
+                transformItems={items =>
+                  items.filter(item => item.label[0] !== '-')
                 }
                 searchable={true}
                 showMore={true}
@@ -162,27 +202,19 @@ function App() {
                 inclusive={false}
                 includeAttributes={['brand']}
                 transformItems={items => {
-                  console.log('currentRefinementItems', items);
                   return items.filter(item => {
-                    console.log('currentRefinements', item);
                     return item.attribute === 'brand';
                   });
                 }}
               />
               <CustomRefinementList
-                limit={40}
-                // operator={'and'}
+                limit={100}
                 attribute="brand"
-                //defaultRefinement={['-Samsung', '-Sony']}
-                transformItems={
-                  items => items
-                  //  .reverse()
-                  //  .slice(0, 20)
-                }
-                showMore={true}
-                showMoreLimit={30}
+                defaultRefinement={['-Samsung', '-Sony']}
+                transformItems={items => items}
+                searchable={true}
+                // showMoreLimit={30}
               />
-
               <p>types</p>
               <CustomCurrentRefinements
                 inclusive={false}
@@ -194,14 +226,9 @@ function App() {
               />
               <CustomRefinementList
                 limit={200}
-                // operator={'and'}
                 attribute="type"
-               defaultRefinement={['-Otr mic', '-Pedestal']}
-                transformItems={
-                  items => items
-                  //  .reverse()
-                  //  .slice(0, 20)
-                }
+                defaultRefinement={['-Otr mic', '-Pedestal']}
+                transformItems={items => items}
               />
 
               <p> categories</p>
@@ -216,10 +243,8 @@ function App() {
               <RefinementList
                 limit={20}
                 attribute="categories"
-                transformItems={
-                  items => items.filter(item => item.label[0] !== '-')
-                  // .reverse()
-                  // .slice(0, 20)
+                transformItems={items =>
+                  items.filter(item => item.label[0] !== '-')
                 }
               />
               <p> -categories</p>
@@ -227,9 +252,9 @@ function App() {
                 inclusive={false}
                 includeAttributes={['categories']}
                 transformItems={items => {
-                  console.log('currentRefinementItems', items);
+                  // console.log('currentRefinementItems', items);
                   return items.filter(item => {
-                    console.log('currentRefinements', item);
+                    // console.log('currentRefinements', item);
                     return item.attribute === 'categories';
                   });
                 }}
@@ -237,21 +262,31 @@ function App() {
               <CustomRefinementList
                 limit={40}
                 attribute="categories"
-                transformItems={
-                  items => items
-                  //  .reverse()
-                  // .slice(0, 20)
-                }
+                transformItems={items => items}
               />
             </div>
 
             <div className="search-panel__results">
+              <Configure filters={filters} />
               <SearchBox
                 className="searchbox"
                 translations={{
                   placeholder: '',
                 }}
               />
+              <ul>
+                {excludedItems.map(item => (
+                  <li key={`exclude-${item.objectID}`}>
+                    <span>{item.objectID} : </span>
+                    <span>{item.name}</span>
+                    <button onClick={() => addBack('objectID', item)}>
+                      Add Back
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <CustomAutocomplete onExclude={onExclude} />
               <Stats />
 
               <Hits hitComponent={Hit} />
@@ -273,6 +308,20 @@ function Hit(props) {
       <h1>
         <Highlight attribute="name" hit={props.hit} />
       </h1>
+      <p>
+        <div attribute="objectID">
+          {props.hit.objectID}
+          {/* <button
+            onClick={() => {
+              exclude('objectID', props.hit.objectID);
+              console.log(props.hit.objectID);
+            }}
+          >
+            Exclude
+          </button> */}
+        </div>
+        <div attribute="objectID">{props.hit.objectID}</div>
+      </p>
       <p>
         <Highlight attribute="description" hit={props.hit} />
       </p>
