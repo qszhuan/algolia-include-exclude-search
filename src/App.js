@@ -188,7 +188,7 @@ function App() {
               />
               <RefinementList
                 limit={20}
-                defaultRefinement={['LG']}
+                defaultRefinement={['LG','-Samsung', '-Sony']}
                 attribute="brand"
                 transformItems={items =>
                   items.filter(item => item.label[0] !== '-')
@@ -210,7 +210,7 @@ function App() {
               <CustomRefinementList
                 limit={100}
                 attribute="brand"
-                defaultRefinement={['-Samsung', '-Sony']}
+                defaultRefinement={['LG','-Samsung', '-Sony']}
                 transformItems={items => items}
                 searchable={true}
                 // showMoreLimit={30}
